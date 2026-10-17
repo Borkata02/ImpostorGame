@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-select=none">
+  <title>Impostor Game</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- Supabase JS Client -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .card-flip {
+      transition: transform 0.3s ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen font-sans flex flex-col justify-between p-4">
+
+  <div id="app" class="max-w-md mx-auto w-full flex-1 flex flex-col justify-between">
+    
+    <!-- Навигация / Админ бутон -->
+    <header class="flex justify-between items-center py-2 border-b border-slate-700">
+      <h1 class="text-xl font-bold text-red-500 tracking-wider">IMPOSTOR</h1>
+      <button @click="showAdminModal = true" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-600">
+        {{ isAdmin ? '⚙️ Админ' : '🔑 Вход' }}
+      </button>
+    </header>
+
+    <!-- ЕКРАН 1: Настройки на играта -->
+    <main v-if="gameState === 'setup'" class="my-auto space-y-6 py-4">
+      <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700 space-y-4 shadow-xl">
+        <h2 class="text-lg font-bold text-slate-200">1. Играчи</h2>
+        <div class="flex gap-2">
+          <input v-model="newPlayerName" @keyup.enter="addPlayer" type="text" placeholder="Име на играч..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-red-500">
+          <button @click="addPlayer" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl font-bold">+</button>
+        </div>
+        
+        <div class="flex flex-wrap gap-2 max-h-36 overflow-y-auto pt-2">
+          <span v-for="(p, i) in players" :key="i" class="bg-slate-700 text-sm px-3 py-1.5 rounded-xl flex items-center gap-2">
+            {{ p }}
+            <button @click="removePlayer(i)" class="text-red-400 font-bold hover:text-red-300">&times;</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700 space-y-4 shadow-xl">
+        <h2 class="text-lg font-bold text-slate-200">2. Настройки</h2>
+        
+        <div>
+          <label class="text-xs text-slate-400 block mb-1">Категория</label>
+          <select v-model="selectedCategory" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white focus:outline-none">
+            <option value="all">🎲 Всички категории</option>
+            <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="text-xs text-slate-400 block mb-1">Брой Impostors</label>
+          <div class="flex items-center gap-4">
+            <input type="range" min="1" :max="Math.max(1, players.length - 1)" v-model.number="impostorCount" class="w-full accent-red-500">
+            <span class="font-bold text-red-400 text-lg w-6">{{ impostorCount }}</span>
+          </div>
+        </div>
+      </div>
+
+      <button @click="startGame" :disabled="players.length < 3" class="w-full bg-gradient-to-r from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 disabled:opacity-40 text-white font-bold py-4 rounded-2xl text-lg shadow-lg">
+        {{ players.length < 3 ? 'Добавете поне 3 играча' : 'Започни играта' }}
+      </button>
+    </main>
+
+    <!-- ЕКРАН 2: Раздаване на карти -->
+    <main v-if="gameState === 'cards'" class="my-auto text-center space-y-6 py-4">
+      <div class="space-y-1">
+        <p class="text-xs text-slate-400 uppercase tracking-widest">Телефона е у</p>
+        <h2 class="text-3xl font-extrabold text-red-400">{{ currentTurnPlayer }}</h2>
+      </div>
+
+      <!-- Карта -->
+      <div 
+        @touchstart.prevent="isHolding = true" 
+        @touchend.prevent="isHolding = false"
+        @mousedown="isHolding = true" 
+        @mouseup="isHolding = false"
+        class="w-full h-80 bg-gradient-to-br from-slate-800 to-slate-850 border-2 border-red-500/30 rounded-3xl p-6 flex flex-col justify-center items-center shadow-2xl cursor-pointer select-none active:scale-95 transition-all duration-150"
+      >
+        <template v-if="!isHolding">
+          <div class="text-5xl mb-4">🕵️‍♂️</div>
+          <p class="text-slate-300 font-semibold text-lg">Задръж за да видиш думата</p>
+          <p class="text-xs text-slate-500 mt-2">(Пуснете, за да я скриете)</p>
+        </template>
+
+        <template v-else>
+          <div v-if="assignedRoles[currentPlayerIndex].isImpostor" class="space-y-3">
+            <div class="text-xs font-bold bg-red-950 text-red-400 border border-red-800 px-3 py-1 rounded-full inline-block">
+              ТИ СИ IMPOSTOR
+            </div>
+            <p class="text-slate-400 text-sm">Твоята подсказка:</p>
+            <p class="text-3xl font-black text-amber-400 tracking-wide">{{ assignedRoles[currentPlayerIndex].word }}</p>
+          </div>
+
+          <div v-else class="space-y-3">
+            <div class="text-xs font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 px-3 py-1 rounded-full inline-block">
+              ТИ СИ В ИГРАТА
+            </div>
+            <p class="text-slate-400 text-sm">Твоята дума:</p>
+            <p class="text-3xl font-black text-white tracking-wide">{{ assignedRoles[currentPlayerIndex].word }}</p>
+          </div>
+        </template>
+      </div>
+
+      <button @click="nextPlayer" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 rounded-2xl border border-slate-700 shadow-md">
+        {{ currentPlayerIndex < players.length - 1 ? 'Следващ играч ➔' : 'Започване на играта 🚀' }}
+      </button>
+    </main>
+
+    <!-- ЕКРАН 3: Начало на играта -->
+    <main v-if="gameState === 'play'" class="my-auto text-center space-y-6 py-4">
+      <div class="bg-slate-800 p-6 rounded-3xl border border-slate-700 space-y-4 shadow-xl">
+        <div class="text-6xl">📣</div>
+        <h2 class="text-xl text-slate-300">Пръв започва:</h2>
+        <p class="text-4xl font-black text-red-400 tracking-wider">{{ startingPlayer }}</p>
+        <p class="text-xs text-slate-400 border-t border-slate-700/60 pt-4">
+          Продължете по посока на часовниковата стрелка! Всеки казва по една дума-асоциация.
+        </p>
+      </div>
+
+      <button @click="resetGame" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-4 rounded-2xl border border-slate-700">
+        🔄 Нова игра
+      </button>
+    </main>
+
+    <!-- АДМИН МОДАЛ -->
+    <div v-if="showAdminModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+          <h3 class="font-bold text-lg">Администрация</h3>
+          <button @click="showAdminModal = false" class="text-slate-400 text-xl font-bold">&times;</button>
+        </div>
+
+        <!-- Форма за Вход -->
+        <div v-if="!isAdmin" class="space-y-3">
+          <input v-model="adminEmail" type="email" placeholder="Email" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white">
+          <input v-model="adminPassword" type="password" placeholder="Парола" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white">
+          <button @click="loginAdmin" class="w-full bg-red-600 hover:bg-red-700 font-bold py-2 rounded-xl">Вход</button>
+        </div>
+
+        <!-- Панел за добавяне на думи (ако е логнат) -->
+        <div v-else class="space-y-4">
+          <div>
+            <label class="text-xs text-slate-400 block mb-1">Нова Категория</label>
+            <div class="flex gap-2">
+              <input v-model="newCategoryName" type="text" placeholder="Име на категория..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+              <button @click="addCategory" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-xl text-xs font-bold">Добави</button>
+            </div>
+            <div class="bg-slate-900/50 p-3 rounded-2xl border border-slate-700 space-y-3">
+  <label class="text-xs text-amber-400 font-bold block">✨ AI Генератор на подсказки</label>
+  <input v-model="aiTopicInput" type="text" placeholder="Въведи дума или тема (напр. Футбол)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+  <button @click="generateWithAI" :disabled="isGenerating" class="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 font-bold py-2 rounded-xl text-sm text-white">
+    {{ isGenerating ? 'Генериране...' : 'Генерирай с AI' }}
+  </button>
+</div>
+          </div>
+
+          <hr class="border-slate-700">
+
+          <div class="space-y-2">
+            <label class="text-xs text-slate-400 block">Добавяне на Дума</label>
+            <select v-model="addWordCategoryId" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+              <option value="" disabled>Избери категория</option>
+              <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+            </select>
+            <input v-model="newOriginalWord" type="text" placeholder="Оригинална дума (напр. Баница)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+            <input v-model="newImpostorHint" type="text" placeholder="Подсказка за Impostor (напр. Бюрек)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+            
+            <button @click="addWord" class="w-full bg-red-600 hover:bg-red-700 font-bold py-2 rounded-xl text-sm">
+              Запази думата
+            </button>
+          </div>
+
+          <button @click="logoutAdmin" class="w-full bg-slate-900 hover:bg-slate-950 text-slate-400 py-2 rounded-xl text-xs mt-4">
+            Изход от акаунта
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+ 
