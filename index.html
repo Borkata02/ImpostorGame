@@ -136,9 +136,9 @@
       </button>
     </main>
 
-    <!-- АДМИН МОДАЛ -->
+   <!-- АДМИН МОДАЛ -->
     <div v-if="showAdminModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 w-full max-w-lg space-y-4 max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center border-b border-slate-700 pb-3">
           <h3 class="font-bold text-lg">Администрация</h3>
           <button @click="showAdminModal = false" class="text-slate-400 text-xl font-bold">&times;</button>
@@ -153,36 +153,65 @@
 
         <!-- Панел за управление (ако е логнат) -->
         <div v-else class="space-y-4">
+          <!-- Избор на Категория за всички действия -->
           <div>
-            <label class="text-xs text-slate-400 block mb-1">Нова Категория</label>
+            <label class="text-xs text-slate-400 block mb-1">Избери Категория</label>
             <div class="flex gap-2">
-              <input v-model="newCategoryName" type="text" placeholder="Име на категория..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
-              <button @click="addCategory" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-xl text-xs font-bold">Добави</button>
+              <select v-model="addWordCategoryId" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+                <option value="" disabled>Избери категория</option>
+                <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+              </select>
             </div>
           </div>
 
-          <!-- AI Генератор -->
-          <div class="bg-slate-900/50 p-3 rounded-2xl border border-slate-700 space-y-3">
-            <label class="text-xs text-amber-400 font-bold block">✨ AI Генератор на подсказки</label>
-            <input v-model="aiTopicInput" type="text" placeholder="Въведи дума или тема (напр. Футбол)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
-            <button @click="generateWithAI" :disabled="isGenerating" class="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 font-bold py-2 rounded-xl text-sm text-white">
-              {{ isGenerating ? 'Генериране...' : 'Генерирай с AI' }}
+          <!-- Създаване на нова категория -->
+          <div class="bg-slate-900/30 p-3 rounded-2xl border border-slate-700/50 space-y-2">
+            <label class="text-xs text-slate-400 block">Нова категория</label>
+            <div class="flex gap-2">
+              <input v-model="newCategoryName" type="text" placeholder="Име на нова категория..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+              <button @click="addCategory" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-xl text-xs font-bold">Създай</button>
+            </div>
+          </div>
+
+          <!-- Режим на добавяне: Ръчно/AI или Масово (текст/файл) -->
+          <div class="flex border-b border-slate-700 pb-2 gap-2">
+            <button @click="adminTab = 'single'" :class="adminTab === 'single' ? 'bg-red-600 text-white' : 'bg-slate-900 text-slate-400'" class="flex-1 py-1.5 rounded-xl text-xs font-bold transition">
+              Ръчно / AI дума
+            </button>
+            <button @click="adminTab = 'bulk'" :class="adminTab === 'bulk' ? 'bg-red-600 text-white' : 'bg-slate-900 text-slate-400'" class="flex-1 py-1.5 rounded-xl text-xs font-bold transition">
+              📁 Масово / Файл
             </button>
           </div>
 
-          <hr class="border-slate-700">
+          <!-- ТАБ 1: Ръчно / AI -->
+          <div v-if="adminTab === 'single'" class="space-y-3">
+            <div class="bg-slate-900/50 p-3 rounded-2xl border border-slate-700 space-y-2">
+              <label class="text-xs text-amber-400 font-bold block">✨ AI Генератор на подсказки</label>
+              <input v-model="aiTopicInput" type="text" placeholder="Въведи дума или тема (напр. Футбол)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+              <button @click="generateWithAI" :disabled="isGenerating" class="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 font-bold py-2 rounded-xl text-sm text-white">
+                {{ isGenerating ? 'Генериране...' : 'Генерирай с AI' }}
+              </button>
+            </div>
 
-          <div class="space-y-2">
-            <label class="text-xs text-slate-400 block">Добавяне на Дума</label>
-            <select v-model="addWordCategoryId" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
-              <option value="" disabled>Избери категория</option>
-              <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-            </select>
-            <input v-model="newOriginalWord" type="text" placeholder="Оригинална дума (напр. Баница)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
-            <input v-model="newImpostorHint" type="text" placeholder="Подсказка за Impostor (напр. Бюрек)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
-            
-            <button @click="addWord" class="w-full bg-red-600 hover:bg-red-700 font-bold py-2 rounded-xl text-sm">
-              Запази думата
+            <div class="space-y-2">
+              <input v-model="newOriginalWord" type="text" placeholder="Оригинална дума (напр. Баница)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+              <input v-model="newImpostorHint" type="text" placeholder="Подсказка за Impostor (напр. Бюрек)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+              <button @click="addWord" class="w-full bg-red-600 hover:bg-red-700 font-bold py-2 rounded-xl text-sm">
+                Запази думата с проверка
+              </button>
+            </div>
+          </div>
+
+          <!-- ТАБ 2: Масово добавяне (Текст или Файл) -->
+          <div v-if="adminTab === 'bulk'" class="space-y-3">
+            <div>
+              <label class="text-xs text-slate-400 block mb-1">Качи текстов файл (.txt) или ги пейстни тук:</label>
+              <input type="file" @change="handleFileUpload" accept=".txt" class="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-white hover:file:bg-slate-600 mb-2">
+              <textarea v-model="bulkWordsText" rows="5" placeholder="Пример:&#10;Баница - Бюрек&#10;Кафе - Чай&#10;Футбол - Баскетбол" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white font-mono"></textarea>
+            </div>
+            <p class="text-[10px] text-slate-500">Формат на ред: Дума - Подсказка или Дума, Подсказка</p>
+            <button @click="addBulkWords" class="w-full bg-red-600 hover:bg-red-700 font-bold py-2 rounded-xl text-sm">
+              Импортирай и провери за дубликати
             </button>
           </div>
 

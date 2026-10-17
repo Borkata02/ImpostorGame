@@ -24,9 +24,11 @@ createApp({
     const newOriginalWord = ref('');
     const newImpostorHint = ref('');
 
-    // AI Генератор променливи
+    // AI Генератор и масово добавяне променливи
     const aiTopicInput = ref('');
     const isGenerating = ref(false);
+    const adminTab = ref('single');
+    const bulkWordsText = ref('');
 
     const fetchData = async () => {
       const { data: catData } = await supabaseClient.from('categories').select('*');
@@ -81,10 +83,12 @@ createApp({
 
       assignedRoles.value = players.value.map((player, idx) => {
         const isImp = impostorIndexes.has(idx);
+        // Ако няма въведена подсказка в базата, слагаме оригиналната дума като fallback
+        const hintText = randomWordObj.impostor_hint || randomWordObj.original_word;
         return {
           player,
           isImpostor: isImp,
-          word: isImp ? randomWordObj.impostor_hint : randomWordObj.original_word
+          word: isImp ? hintText : randomWordObj.original_word
         };
       });
 
@@ -132,23 +136,92 @@ createApp({
       }
     };
 
+    // Помощна функция за проверка за дубликати
+    const checkDuplicate = (word, categoryId) => {
+      return wordsList.value.some(
+        w => w.category_id === categoryId && w.original_word.toLowerCase() === word.toLowerCase()
+      );
+    };
+
+    // Ръчно добавяне на дума (подсказката вече не е задължителна - ако е празна, ползва оригиналната дума)
     const addWord = async () => {
-      if (!addWordCategoryId.value || !newOriginalWord.value || !newImpostorHint.value) {
-        alert('Моля попълнете всички полета!');
+      if (!addWordCategoryId.value || !newOriginalWord.value.trim()) {
+        alert('Моля изберете категория и въведете оригинална дума!');
         return;
       }
+
+      const wordClean = newOriginalWord.value.trim();
+      const hintClean = newImpostorHint.value.trim() ? newImpostorHint.value.trim() : wordClean;
+
+      if (checkDuplicate(wordClean, addWordCategoryId.value)) {
+        alert(`Думата "${wordClean}" вече съществува в тази категория!`);
+        return;
+      }
+
       const { error } = await supabaseClient.from('words').insert([{
         category_id: addWordCategoryId.value,
-        original_word: newOriginalWord.value.trim(),
-        impostor_hint: newImpostorHint.value.trim()
+        original_word: wordClean,
+        impostor_hint: hintClean
       }]);
+
       if (error) alert(error.message);
       else {
         newOriginalWord.value = '';
         newImpostorHint.value = '';
-        alert('Думата е добавена!');
+        alert('Думата е добавена успешно!');
         fetchData();
       }
+    };
+
+    // Масово добавяне от текст или файл
+    const addBulkWords = async () => {
+      if (!addWordCategoryId.value || !bulkWordsText.value.trim()) {
+        alert('Моля изберете категория и въведете думи!');
+        return;
+      }
+
+      const lines = bulkWordsText.value.split('\n');
+      let addedCount = 0;
+      let duplicatesCount = 0;
+
+      for (let line of lines) {
+        if (!line.trim()) continue;
+
+        const parts = line.includes('-') ? line.split('-') : line.split(',');
+        const original = parts[0] ? parts[0].trim() : '';
+        if (!original) continue;
+
+        // Ако няма сложена подсказка след тирето/запетайката, ползваме самата дума
+        const hint = parts[1] && parts[1].trim() ? parts[1].trim() : original;
+
+        if (checkDuplicate(original, addWordCategoryId.value)) {
+          duplicatesCount++;
+          continue;
+        }
+
+        const { error } = await supabaseClient.from('words').insert([{
+          category_id: addWordCategoryId.value,
+          original_word: original,
+          impostor_hint: hint
+        }]);
+
+        if (!error) addedCount++;
+      }
+
+      alert(`Готово! Добавени нови думи: ${addedCount}. Пропуснати дубликати: ${duplicatesCount}.`);
+      bulkWordsText.value = '';
+      fetchData();
+    };
+
+    const handleFileUpload = (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        bulkWordsText.value = e.target.result;
+      };
+      reader.readAsText(file);
     };
 
     const generateWithAI = async () => {
@@ -159,7 +232,7 @@ createApp({
 
       isGenerating.value = true;
       try {
-        const apiKey = 'ТВОЯТ_GEMINI_API_KEY'; // Тук сложи твоя ключ от Google AI Studio
+        const apiKey = 'ТВОЯТ_GEMINI_API_KEY'; 
         if (!apiKey || apiKey === 'ТВОЯТ_GEMINI_API_KEY') {
           alert('Моля въведете валиден Gemini API ключ в js/app.js');
           isGenerating.value = false;
@@ -196,7 +269,8 @@ createApp({
       currentPlayerIndex, isHolding, assignedRoles, nextPlayer, startingPlayer,
       resetGame, showAdminModal, isAdmin, adminEmail, adminPassword, loginAdmin,
       logoutAdmin, newCategoryName, addCategory, addWordCategoryId, newOriginalWord,
-      newImpostorHint, addWord, aiTopicInput, isGenerating, generateWithAI
+      newImpostorHint, addWord, aiTopicInput, isGenerating, generateWithAI,
+      adminTab, bulkWordsText, addBulkWords, handleFileUpload
     };
   }
 }).mount('#app');
