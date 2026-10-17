@@ -151,7 +151,7 @@
           <button @click="loginAdmin" class="w-full bg-red-600 hover:bg-red-700 font-bold py-2 rounded-xl">Вход</button>
         </div>
 
-        <!-- Панел за добавяне на думи (ако е логнат) -->
+        <!-- Панел за управление (ако е логнат) -->
         <div v-else class="space-y-4">
           <div>
             <label class="text-xs text-slate-400 block mb-1">Нова Категория</label>
@@ -159,13 +159,15 @@
               <input v-model="newCategoryName" type="text" placeholder="Име на категория..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
               <button @click="addCategory" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-xl text-xs font-bold">Добави</button>
             </div>
-            <div class="bg-slate-900/50 p-3 rounded-2xl border border-slate-700 space-y-3">
-  <label class="text-xs text-amber-400 font-bold block">✨ AI Генератор на подсказки</label>
-  <input v-model="aiTopicInput" type="text" placeholder="Въведи дума или тема (напр. Футбол)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
-  <button @click="generateWithAI" :disabled="isGenerating" class="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 font-bold py-2 rounded-xl text-sm text-white">
-    {{ isGenerating ? 'Генериране...' : 'Генерирай с AI' }}
-  </button>
-</div>
+          </div>
+
+          <!-- AI Генератор -->
+          <div class="bg-slate-900/50 p-3 rounded-2xl border border-slate-700 space-y-3">
+            <label class="text-xs text-amber-400 font-bold block">✨ AI Генератор на подсказки</label>
+            <input v-model="aiTopicInput" type="text" placeholder="Въведи дума или тема (напр. Футбол)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white">
+            <button @click="generateWithAI" :disabled="isGenerating" class="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 font-bold py-2 rounded-xl text-sm text-white">
+              {{ isGenerating ? 'Генериране...' : 'Генерирай с AI' }}
+            </button>
           </div>
 
           <hr class="border-slate-700">
@@ -193,4 +195,7 @@
 
   </div>
 
- 
+  <script src="js/supabase.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
